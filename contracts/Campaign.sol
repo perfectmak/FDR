@@ -12,12 +12,16 @@ contract Campaign {
     mapping(address => uint256) public balanceOf;
 
     bool fundingGoalReached = false;
+    uint numCampaigns = 0;
+
     // Events that will be fired on changes.
     event GoalReached(address beneficiary, uint amountRaised);
     event FundTransfer(address backer, uint amount, bool isContribution); // log the fund transfer
     event Refund(address _to, uint _amount); // possible refund if the target is not met
+    event Error(string error);
 
     bool campaignClosed = false;
+    bool halted = false;
 
     /* data structure to hold information about campaign contributors */
     struct Contributor {
@@ -30,14 +34,14 @@ contract Campaign {
     mapping(address => Contributor) public contributorStructs;
 
     address[] public contributorList;
+    Campaign[] public  campaigns;
 
     /*  at initialization, setup the owner */
     function Campaign(
         address ifSuccessfulSendTo,
         uint fundingGoalInEthers,
         uint durationInMinutes,
-        uint etherCostOfEachToken,
-        token addressOfTokenUsedAsReward
+        uint etherCostOfEachToken
     ) {
         beneficiary = ifSuccessfulSendTo;
         fundingGoal = fundingGoalInEthers * 1 ether;
@@ -52,8 +56,30 @@ contract Campaign {
     }
 
     modifier afterDeadline() {
-        if (now >= deadline)
+        if (now >= deadline) {
+            Error('Mortal: the deadline for this campaign has been exceeded');
+
+        }
         _;
+    }
+
+    modifier onlyOwner() {
+        if (msg.sender != beneficiary) {
+            Error('Mortal: onlyOwner function called by user that is not owner');
+        }
+        _;
+    }
+
+    function halt() onlyOwner{
+        halted = true;
+    }
+
+    function unhalt() onlyOwner{
+        halted = false;
+    }
+
+    function changeBeneficiary(address _newBeneficiary) onlyOwner{
+        beneficiary = _newBeneficiary;
     }
 
     function getContributorCount()
@@ -81,7 +107,7 @@ contract Campaign {
     {
         // don't accept transaction if the campaign has closed
         if (campaignClosed){
-            throw;
+            revert();
         }
         // Revert the call to contribute if the fund raising
         // period is over
@@ -95,8 +121,6 @@ contract Campaign {
         uint amount = msg.value;
         balanceOf[msg.sender] = amount;
         amountRaised += amount;
-
-        donorsPaid[msg.sender] = msg.value;
 
         // keep track of receipt for contributors
         contributorStructs[msg.sender].received += msg.value;
@@ -118,7 +142,8 @@ contract Campaign {
         if (currentBalance > 0 && currentBalance >= amount) {
             if (msg.sender.send(amount)) {
                 FundTransfer(msg.sender, amount, false);
-            } else {
+            }
+            else {
                 // update the balance for the contributor
                 balanceOf[msg.sender] = currentBalance - amount;
             }
@@ -155,7 +180,8 @@ contract Campaign {
             if (amount > 0) {
                 if (msg.sender.send(amount)) {
                     FundTransfer(msg.sender, amount, false);
-                } else {
+                }
+                else {
                     balanceOf[msg.sender] = amount;
                 }
             }
@@ -164,7 +190,8 @@ contract Campaign {
         if (fundingGoalReached && beneficiary == msg.sender) {
             if (beneficiary.send(amountRaised)) {
                 FundTransfer(beneficiary, amountRaised, false);
-            } else {
+            }
+            else {
                 //If we fail to send the funds to beneficiary, unlock contributors balance
                 fundingGoalReached = false;
             }
@@ -190,7 +217,7 @@ contract Campaign {
     }
 
     // release funds in the contract to avoid permanent lockdown
-    function destroy() {
+    function destroy() constant {
         if(msg.sender == beneficiary) {
             selfdestruct(beneficiary);
         }
