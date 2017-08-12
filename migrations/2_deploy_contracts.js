@@ -1,8 +1,8 @@
-var ConvertLib = artifacts.require("./ConvertLib.sol");
-var MetaCoin = artifacts.require("./MetaCoin.sol");
+var Campaign = artifacts.require("./Campaign.sol");
+var FDRToken = artifacts.require("./FDRToken.sol");
 
 module.exports = function(deployer) {
-  deployer.deploy(ConvertLib);
-  deployer.link(ConvertLib, MetaCoin);
-  deployer.deploy(MetaCoin);
+  deployer.deploy(Campaign);
+  deployer.link(Campaign, FDRToken);
+  deployer.deploy(FDRToken);
 };
